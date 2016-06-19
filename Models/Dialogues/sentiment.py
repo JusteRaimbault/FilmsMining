@@ -25,4 +25,7 @@ for film in films.keys() :
     sentiment_ts[film+'_pos']=posts
     sentiment_ts[film+'_neu']=neuts
 
+# normlize ts to have same length ?
+# or better reading customively in R
+
 utils.export_dico_ts_csv(sentiment_ts,'res/sentiment_ts_')
