@@ -4,7 +4,7 @@
 library(dplyr)
 library(ggplot2)
 
-setwd(paste0(Sys.getenv('CS_HOME'),'/FilmsMining/Models/Dialogues'))
+setwd(paste0(Sys.getenv('CS_HOME'),'/FilmsMining/FilmsMining/Models/Dialogues'))
 
 file = 'res/sentiment_ts_2016-06-17 08:09:03.634700.csv'
 
@@ -20,14 +20,12 @@ negseries=data.frame();neuseries=data.frame();posseries=data.frame();seriesnames
 for(i in 1:length(slines)){
   currentline=slines[[i]];currentid=currentline[1];currentts=as.numeric(currentline[2:length(currentline)])
   # take the films with more than 100 lines
-  if(length(currentts)>=100){
+  if(length(currentts)>=tbins){
     normalizedts=c()
-    for(t in 1:100){normalizedts=append(normalizedts,mean(currentts[(floor((t-1)*length(currentts)/100)):(floor(t*length(currentts)/100))]))}
+    for(t in 1:tbins){normalizedts=append(normalizedts,mean(currentts[(floor((t-1)*length(currentts)/tbins)):(floor(t*length(currentts)/tbins))]))}
     filmid=strsplit(currentid,"_")[[1]][1];senttype=strsplit(currentid,"_")[[1]][2]
-    series=append(series,normalizedts);times=append(times,1:100)
+    series=append(series,normalizedts);times=append(times,1:tbins)
     filmids=append(filmids,rep(filmid,length(normalizedts)));senttypes=append(senttypes,rep(senttype,length(normalizedts)))
-    cseries = rbind(cseries,normalizedts)
-    #show(senttype)
     if(senttype=='neg'){negseries = rbind(negseries,normalizedts);seriesnames=append(seriesnames,filmid)}
     if(senttype=='neu'){neuseries = rbind(neuseries,normalizedts)}
     if(senttype=='pos'){posseries = rbind(posseries,normalizedts)}
@@ -42,6 +40,7 @@ rownames(series)<-seriesnames
 #for(k in 2:25){
 #  show(k)
 
+k=5
 km = kmeans(series,k,iter.max=10000,nstart=10)
 
 #ccoef=append(ccoef,km$tot.withinss/km$totss)
@@ -83,7 +82,8 @@ g+geom_point(aes(x=PC1,y=PC2,colour=cluster))
 genres = c();pc1=c();pc2=c();clusters=c()
 for(i in 1:nrow(coords)){
   rows = which(filmdata[,1]==rownames(coords)[i])
-  genres=append(genres,as.character(filmdata[rows,6]));pc1=append(pc1,rep(coords[i,1],length(rows)));pc2=append(pc2,rep(coords[i,2],length(rows)));
+  genres=append(genres,as.character(filmdata[rows,6]));
+  pc1=append(pc1,rep(coords[i,1],length(rows)));pc2=append(pc2,rep(coords[i,2],length(rows)));
   clusters=append(clusters,rep(km$cluster[i],length(rows)))
 }
 
@@ -98,9 +98,22 @@ g=ggplot(data.frame(cluster=clusters,genre=genres))
 g+geom_bar(aes(x=cluster,fill=genre),position="fill")
 
 
+cgenres = as.tbl(data.frame(cluster=clusters,genre=genres))
+meancount = cgenres%>%group_by(genre)%>%summarise(count=length(genre)/5)
+meancount$genre=as.character(meancount$genre)
+aggrcount=cgenres%>%group_by(genre,cluster)%>%summarise(count=length(genre))
+aggrcount$genre=as.character(aggrcount$genre)
+diff=c();
+for(i in 1:nrow(aggrcount)){diff=append(diff,aggrcount[i,3]-meancount$count[meancount$genre==c(aggrcount[i,1])])}
+aggrcount$diff=as.numeric(diff)
+
+g=ggplot(aggrcount)
+g+geom_bar(aes(x=genre,y=diff,fill=genre),stat="identity",)+facet_wrap(~cluster)+xlab(label = "")
 
 
-
-
+#################
+scores=filmdata%>%group_by(V1)%>%summarise(id=V1[1],score=mean(V4))
+scores$cluster=km$cluster[as.character(scores$id)]
+summary(lm(score~cluster,scores))
 
 
